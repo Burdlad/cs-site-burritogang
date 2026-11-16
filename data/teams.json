@@ -1,0 +1,171 @@
+{
+ "event": {
+  "name": "PGL Major Singapore 2026",
+  "playoffs": "Dec 10–13, 2026",
+  "venue": "Singapore Indoor Stadium",
+  "hltv": "https://www.hltv.org/events",
+  "playoffsStart": "2026-12-10T00:00:00Z"
+ },
+ "teams": [
+  {
+   "name": "MOUZ",
+   "tag": "MOUZ",
+   "stage": 3
+  },
+  {
+   "name": "Team Vitality",
+   "tag": "VIT",
+   "stage": 3
+  },
+  {
+   "name": "Aurora Gaming",
+   "tag": "AUR",
+   "stage": 3
+  },
+  {
+   "name": "Team Spirit",
+   "tag": "SPI",
+   "stage": 3
+  },
+  {
+   "name": "BetBoom Team",
+   "tag": "BB",
+   "stage": 3
+  },
+  {
+   "name": "Team Falcons",
+   "tag": "FAL",
+   "stage": 3
+  },
+  {
+   "name": "FURIA Esports",
+   "tag": "FUR",
+   "stage": 3
+  },
+  {
+   "name": "Legacy",
+   "tag": "LEG",
+   "stage": 3
+  },
+  {
+   "name": "FUT Esports",
+   "tag": "FUT",
+   "stage": 2
+  },
+  {
+   "name": "Nemiga Gaming",
+   "tag": "NEM",
+   "stage": 2
+  },
+  {
+   "name": "Natus Vincere",
+   "tag": "NAVI",
+   "stage": 2
+  },
+  {
+   "name": "G2 Esports",
+   "tag": "G2",
+   "stage": 2
+  },
+  {
+   "name": "1win Team",
+   "tag": "1WIN",
+   "stage": 2
+  },
+  {
+   "name": "Astralis",
+   "tag": "AST",
+   "stage": 2
+  },
+  {
+   "name": "MIBR",
+   "tag": "MIBR",
+   "stage": 2
+  },
+  {
+   "name": "The MongolZ",
+   "tag": "MGZ",
+   "stage": 2
+  },
+  {
+   "name": "PARIVISION",
+   "tag": "PARI",
+   "stage": 1
+  },
+  {
+   "name": "Ninjas in Pyjamas",
+   "tag": "NIP",
+   "stage": 1
+  },
+  {
+   "name": "HEROIC",
+   "tag": "HER",
+   "stage": 1
+  },
+  {
+   "name": "FaZe Clan",
+   "tag": "FAZE",
+   "stage": 1
+  },
+  {
+   "name": "Eternal Fire",
+   "tag": "EF",
+   "stage": 1
+  },
+  {
+   "name": "100 Thieves",
+   "tag": "100T",
+   "stage": 1
+  },
+  {
+   "name": "Team Liquid",
+   "tag": "TL",
+   "stage": 1
+  },
+  {
+   "name": "M80",
+   "tag": "M80",
+   "stage": 1
+  },
+  {
+   "name": "9z Team",
+   "tag": "9Z",
+   "stage": 1
+  },
+  {
+   "name": "DENDELE",
+   "tag": "DEN",
+   "stage": 1
+  },
+  {
+   "name": "Imperial Esports",
+   "tag": "IMP",
+   "stage": 1
+  },
+  {
+   "name": "Wildcard",
+   "tag": "WC",
+   "stage": 1
+  },
+  {
+   "name": "BC.Game Esports",
+   "tag": "BC",
+   "stage": 1
+  },
+  {
+   "name": "FlyQuest",
+   "tag": "FQ",
+   "stage": 1
+  },
+  {
+   "name": "Chinggis Warriors",
+   "tag": "CW",
+   "stage": 1
+  },
+  {
+   "name": "Lynn Vision",
+   "tag": "LVG",
+   "stage": 1
+  }
+ ]
+}

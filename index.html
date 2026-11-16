@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS Major Bracket · Burrito Gang</title>
+<meta name="description" content="Build your CS2 Major playoff bracket and watch the live bracket fix itself as results come in.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%AF%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/"><span class="burrito">🌯</span><span><b>BURRITO GANG</b><small>CS Major Bracket</small></span></a>
+  <nav id="nav">
+    <a href="#/" data-r="home">Live</a>
+    <a href="#/brackets" data-r="brackets">Brackets</a>
+    <a href="#/new" data-r="new" class="cta">+ New bracket</a>
+    <a href="#/admin" data-r="admin" class="ghost">Admin</a>
+  </nav>
+</header>
+<main id="app"><p class="muted pad">Loading…</p></main>
+<footer>
+  <span>Results are updated by hand from <a href="https://www.hltv.org/events" target="_blank" rel="noopener">HLTV</a>. Not affiliated with HLTV, PGL or Valve.</span>
+  <span id="conn" class="conn">●</span>
+</footer>
+<div id="toast" class="toast" role="status"></div>
+<script src="/bracket.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
