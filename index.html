@@ -3,28 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CS Major Bracket · Burrito Gang</title>
-<meta name="description" content="Build your CS2 Major playoff bracket and watch the live bracket fix itself as results come in.">
+<meta name="theme-color" content="#14110d">
+<title>CS Majors · Burrito Gang</title>
+<meta name="description" content="Live CS2 Major Swiss stages and playoffs, plus a simulator to build your own bracket.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%AF%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip" href="#app">Skip to content</a>
 <header class="top">
-  <a class="brand" href="#/"><span class="burrito">🌯</span><span><b>BURRITO GANG</b><small>CS Major Bracket</small></span></a>
+  <a class="brand" href="#/">
+    <svg class="logo" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><path fill="#8a5a2b" d="M4 3h8v1h1v1h1v6h-1v1h-1v1H4v-1H3v-1H2V5h1V4h1z"/><path fill="#e7c27d" d="M5 4h6v1h1v1h1v4h-1v1h-1v1H5v-1H4v-1H3V6h1V5h1z"/><path fill="#f6dfa6" d="M5 5h4v1H5zM4 7h2v1H4z"/><path fill="#cfd5dc" d="M1 6h3v4H1z"/><path fill="#8d96a3" d="M1 6h1v4H1zM3 7h1v2H3z"/><path fill="#5f9e4a" d="M11 5h2v1h-2zM12 7h1v1h-1z"/><path fill="#b4412f" d="M11 9h2v1h-2z"/></svg>
+    <span><b>BURRITO GANG</b><small>CS Majors</small></span>
+  </a>
   <nav id="nav">
-    <a href="#/" data-r="home">Live</a>
-    <a href="#/brackets" data-r="brackets">Brackets</a>
-    <a href="#/new" data-r="new" class="cta">+ New bracket</a>
+    <select id="evsel" aria-label="Choose event"></select>
+    <a href="#/events" data-r="events">All majors</a>
     <a href="#/admin" data-r="admin" class="ghost">Admin</a>
   </nav>
 </header>
 <main id="app"><p class="muted pad">Loading…</p></main>
 <footer>
-  <span>Results are updated by hand from <a href="https://www.hltv.org/events" target="_blank" rel="noopener">HLTV</a>. Not affiliated with HLTV, PGL or Valve.</span>
-  <span id="conn" class="conn">●</span>
+  <span>Data from <a href="https://www.hltv.org/events" target="_blank" rel="noopener">HLTV</a> and manual updates. Not affiliated with HLTV, PGL or Valve.</span>
+  <span id="conn" class="conn" title="Auto-refreshing"><i></i> <em>live data</em></span>
 </footer>
 <div id="toast" class="toast" role="status"></div>
-<script src="/bracket.js"></script>
-<script src="/app.js"></script>
+<script src="bracket.js"></script>
+<script src="swiss.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

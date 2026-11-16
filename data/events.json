@@ -1,0 +1,39 @@
+[
+ {
+  "id": "pgl-singapore-2026",
+  "name": "PGL Major Singapore 2026",
+  "start": "2026-11-24",
+  "end": "2026-12-13",
+  "location": "Singapore",
+  "prize": "$1,250,000",
+  "teams": 32,
+  "detail": true
+ },
+ {
+  "id": "iem-cologne-2026",
+  "name": "IEM Cologne Major 2026",
+  "start": "2026-06-02",
+  "end": "2026-06-21",
+  "location": "Cologne",
+  "teams": 32,
+  "detail": false
+ },
+ {
+  "id": "starladder-budapest-2025",
+  "name": "StarLadder Budapest Major 2025",
+  "start": null,
+  "end": null,
+  "location": "Budapest",
+  "teams": 32,
+  "detail": false
+ },
+ {
+  "id": "blast-austin-2025",
+  "name": "BLAST Austin Major 2025",
+  "start": null,
+  "end": null,
+  "location": "Austin",
+  "teams": 32,
+  "detail": false
+ }
+]

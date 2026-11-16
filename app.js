@@ -1,79 +1,132 @@
 (() => {
 'use strict';
-const B = window.Bracket;
+const B = window.Bracket, SW = window.Swiss;
 const $app = document.getElementById('app');
-let S = null;
-let handler = null;     // click handler for the current bracket view
-let homeTab = 'live';
-
+let EVENTS = [], EV = null, RAW = {}, RUNS = null, handler = null;
+let stageSel = {}, simTab = 0, simOpen = false, SIM = null;
 
 // ---------- utils ----------
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const isAdmin = () => !!lsGet('bg_admin_mode', false);
-function toast(msg, err) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'toast', 2800); }
 const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-const team = n => S.teams.find(t => t.name === n);
-const badge = n => `<span class="badge" style="--h:${hue(n)}">${esc(team(n) ? team(n).tag : String(n).slice(0, 3).toUpperCase())}</span>`;
-const ago = ts => { if (!ts) return ''; const s = Math.max(1, (Date.now() - ts) / 1000 | 0); return s < 60 ? s + 's ago' : s < 3600 ? (s / 60 | 0) + 'm ago' : s < 86400 ? (s / 3600 | 0) + 'h ago' : (s / 86400 | 0) + 'd ago'; };
-const go = h => { if (location.hash === h) render(); else location.hash = h; };
 const b64e = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const b64d = s => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))));
+function toast(msg, err) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.className = 'toast', 2800); }
 const copy = async (text, msg) => { try { await navigator.clipboard.writeText(text); toast(msg || 'Copied'); } catch { prompt('Copy this:', text); } };
-
-// ---------- data (static files in /data + this browser's localStorage) ----------
-let FILES = null;
-async function load() {
-  const get = u => fetch(u + '?t=' + Date.now()).then(r => { if (!r.ok) throw new Error(u); return r.json(); });
-  const [t, off, lv] = await Promise.all([get('data/teams.json'), get('data/results.json'), get('data/live.json')]);
-  FILES = { off, lv };
-  build(t);
+const go = h => { if (location.hash === h) route(); else location.hash = h; };
+const DAY = 864e5;
+const t0 = d => Date.parse(d + 'T00:00:00Z');
+function status(e) {
+  if (!e.start || !e.end) return 'done';
+  const n = Date.now();
+  if (n < t0(e.start)) return 'upcoming';
+  if (n > t0(e.end) + DAY) return 'done';
+  return 'live';
 }
-function build(t) {
-  t = t || { event: S.event, teams: S.teams };
-  const draftOff = lsGet('bg_draft_official', null), draftLive = lsGet('bg_draft_live', null);
-  const official = B.cleanOfficial(JSON.parse(JSON.stringify(draftOff || FILES.off)));
-  const lv = draftLive || FILES.lv;
-  const r = B.reconcile({ slots: lv.slots, picks: lv.picks }, official);
-  const stamp = official.updated || 0;
-  const live = { id: 'live', name: lv.name || 'Live bracket', author: lv.author || 'Burrito Gang', live: true, slots: r.slots, picks: r.picks, record: r.record, changes: r.changes.map(c => Object.assign(c, { at: stamp })) };
-  const mine = lsGet('bg_brackets', {});
-  const list = [{ id: 'live', name: live.name, author: live.author, live: true, score: B.score(live, official), champion: live.picks.F || null, record: r.record }]
-    .concat(Object.values(mine).map(b => ({ id: b.id, name: b.name, author: b.author, live: false, created: b.created, score: B.score(b, official), champion: b.picks.F || null })).sort((a, b) => b.score.pts - a.score.pts || b.score.maxPossible - a.score.maxPossible || a.created - b.created));
-  S = { event: t.event, teams: t.teams, official, live, list, maxPoints: B.MAX_POINTS, drafts: { official: !!draftOff, live: !!draftLive } };
-}
-async function refresh() { await load(); render(); }
+const chipFor = s => s === 'live' ? '<span class="chip live">● LIVE</span>' : s === 'upcoming' ? '<span class="chip up">Upcoming</span>' : '<span class="chip done">Completed</span>';
+const fmtRange = e => { if (!e.start) return ''; const f = d => new Date(t0(d)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }); return f(e.start) + ' – ' + f(e.end) + ', ' + e.end.slice(0, 4); };
+const teamInfo = n => EV && EV.teams.find(t => t.name === n);
+const badge = (n, cls = '') => { const t = teamInfo(n); return `<span class="badge ${cls}" style="--h:${hue(n)}" title="${esc(n)}">${esc(t ? t.tag : String(n).slice(0, 4).toUpperCase())}</span>`; };
+const PH = '<span class="badge q">?</span>';
 
-// ---------- bracket rendering ----------
-function matchHTML(m, teams, o) {
+// ---------- data ----------
+async function loadEvents() { const r = await fetch('data/events.json?t=' + Date.now()); EVENTS = await r.json(); }
+async function loadEvent(id) {
+  const r = await fetch(`data/events/${id}.json?t=${Date.now()}`); if (!r.ok) return null;
+  const pub = await r.json(); RAW[id] = JSON.stringify(pub);
+  const draft = isAdmin() && lsGet('bg_draft_' + id, null);
+  return draft || pub;
+}
+const seedFn = ev => { const m = new Map(ev.seeds.map((n, i) => [n, i])); return n => m.has(n) ? m.get(n) : 999; };
+function runAll(ev, picks) {
+  const seed = seedFn(ev), runs = [], lists = [];
+  ev.stages.forEach((st, i) => {
+    const real = ev.matches.filter(m => m.stage === st.id);
+    let teams = null;
+    if (i === 0) teams = st.entrants.slice();
+    else { const p = runs[i - 1]; if (p && p.advanced.length === 8) teams = p.advanced.concat(st.entrants); }
+    if (!teams && real.some(m => m.round === 1)) { const set = new Set(st.entrants); real.forEach(m => { set.add(m.a); set.add(m.b); }); teams = [...set]; }
+    if (teams) teams.sort((a, b) => seed(a) - seed(b));
+    lists.push(teams);
+    runs.push(teams ? SW.run({ teams, seeds: seed, real, picks: (picks && picks[st.id]) || {} }) : null);
+  });
+  return { runs, lists };
+}
+const EMPTY_RUN = () => SW.run({ teams: [] });
+function poOfficial(ev, runs) {
+  const slots = ev.playoffs.slots || SW.playoffSlots(runs[runs.length - 1]) || Array(8).fill(null);
+  return B.cleanOfficial(JSON.parse(JSON.stringify({ slots, results: ev.playoffs.results || {} })));
+}
+function stageState(run) {
+  if (!run) return 'upcoming';
+  const n = run.rounds.reduce((a, R) => a + R.groups.reduce((b, g) => b + g.matches.filter(m => m.real && m.winner).length, 0), 0);
+  return run.complete ? 'done' : n ? 'live' : 'upcoming';
+}
+
+// ---------- swiss board ----------
+function smHTML(m, o) {
+  const tm = t => {
+    const c = ['tm'];
+    if (m.winner) { if (m.winner === t) c.push(m.src === 'real' ? 'win' : 'pick'); else c.push('lose'); }
+    if (m.replaced && m.pick === t) c.push('rep');
+    const click = o.mode === 'sim' && m.src !== 'real';
+    if (click) c.push('click');
+    return `<button class="${c.join(' ')}" ${click ? `data-sm="${esc(m.key)}" data-t="${esc(t)}" data-stage="${o.stage}"` : 'tabindex="-1"'} title="${esc(t)}${m.replaced && m.pick === t ? ' — your pick, replaced by the real result' : ''}">${badge(t)}</button>`;
+  };
+  const mid = m.score && m.src === 'real' ? `<span class="vs sc">${esc(m.score)}</span>` : '<span class="vs">vs</span>';
+  return `<div class="sm">${tm(m.a)}${mid}${tm(m.b)}</div>`;
+}
+function grpHTML(g, o) {
+  const list = o.mode === 'live' ? g.matches.filter(m => m.real) : g.matches;
+  let rows = list.map(m => smHTML(m, o)).join('');
+  for (let i = list.length; i < g.n; i++) rows += `<div class="sm tbd">${PH}<span class="vs">vs</span>${PH}</div>`;
+  return `<div class="grp"><div class="glabel">${g.w}:${g.l}</div><div class="gbox">${rows}</div></div>`;
+}
+function endBox(run, keys, cls, sizes) {
+  const body = keys.map((k, i) => {
+    let h = (run.out[k] || []).map(t => `<span class="tm">${badge(t)}</span>`).join('');
+    for (let j = (run.out[k] || []).length; j < sizes[i]; j++) h += `<span class="tm ph">${PH}</span>`;
+    return `<h5>${k.replace('-', ':')}</h5><div class="endrow">${h}</div>`;
+  }).join('');
+  return `<div class="grp"><div class="endbox ${cls}">${body}</div></div>`;
+}
+function ctlHTML(r) { return `<div class="ctl"><button data-ctl="reset" data-round="${r}">Reset</button><button data-ctl="rand" data-round="${r}" title="Random winners">⚄</button><button data-ctl="seed" data-round="${r}">Higher seed</button></div>`; }
+function swissHTML(run, o) {
+  run = run || EMPTY_RUN();
+  const cols = [];
+  for (let r = 1; r <= 5; r++) {
+    const R = run.rounds[r - 1]; let inner = '';
+    if (r === 4) inner += endBox(run, ['3-0'], 'adv', [2]);
+    if (r === 5) inner += endBox(run, ['3-1', '3-2'], 'adv', [3, 3]);
+    inner += R.groups.map(g => grpHTML(g, o)).join('');
+    if (r === 4) inner += endBox(run, ['0-3'], 'out', [2]);
+    if (r === 5) inner += endBox(run, ['1-3', '2-3'], 'out', [3, 3]);
+    cols.push(`<div class="scol">${o.mode === 'sim' ? ctlHTML(r) : ''}${inner}</div>`);
+  }
+  return `<div class="scroll"><div class="swiss">${cols.join('')}</div></div>`;
+}
+
+// ---------- playoffs bracket ----------
+function pMatch(m, teams, o) {
   const res = o.official.results[m], w = o.winners[m];
-  const lock = o.mode === 'pred' && !!res;
   const rows = teams.map(t => {
-    const c = ['team'];
-    if (!t) c.push('empty');
-    if (t && w === t) c.push('picked');
+    const c = ['team']; if (!t) c.push('empty');
     let mark = '';
-    if (o.mode === 'pred' && res && t) {
-      if (t === w) { c.push(res.winner === w ? 'correct' : 'wrong'); mark = res.winner === w ? '<span class="mark ok">✓</span>' : '<span class="mark no">✕</span>'; }
-      else if (t === res.winner) { c.push('actual'); mark = '<span class="mark ok">WON</span>'; }
-    }
-    if (o.mode === 'official' && res && t === res.winner) { c.push('actual'); mark = '<span class="mark ok">WON</span>'; }
-    const clickable = o.editable && t && !lock && (o.mode === 'pred' || teams.filter(Boolean).length === 2);
-    if (clickable) c.push('click');
-    const label = t ? esc(t) : (o.mode === 'pred' && m[0] === 'Q' ? 'Choose team' : 'TBD');
-    return `<div class="${c.join(' ')}" ${clickable ? `data-m="${m}" data-team="${esc(t)}"` : ''}>${t ? badge(t) : ''}<span class="name">${label}</span>${mark}</div>`;
+    if (t && w === t) c.push(res ? 'actual' : 'picked');
+    if (res && t === w) mark = '<span class="mark">WON</span>';
+    const click = o.editable && t && (o.mode === 'sim' ? !res : teams.filter(Boolean).length === 2);
+    if (click) c.push('click');
+    return `<div class="${c.join(' ')}" ${click ? `data-pm="${m}" data-team="${esc(t)}"` : ''}>${t ? badge(t) : ''}<span class="name">${t ? esc(t) : 'TBD'}</span>${mark}</div>`;
   }).join('');
   const sc = res && res.score ? esc(res.score) : '';
   let tools = '';
-  if (o.mode === 'official' && o.editable && teams.filter(Boolean).length === 2) {
-    tools = `<div class="mtools">Score <input class="score-in" id="sc-${m}" placeholder="2-1" value="${sc}" maxlength="8">${res ? `<button data-clear="${m}">clear</button>` : '<span>then click the winner</span>'}</div>`;
-  }
+  if (o.mode === 'official' && o.editable && teams.filter(Boolean).length === 2) tools = `<div class="mtools">Score <input class="score-in" id="sc-${m}" placeholder="2-1" value="${sc}" maxlength="8">${res ? `<button class="btn sm" data-pclear="${m}">clear</button>` : '<span>then click the winner</span>'}</div>`;
   return `<div class="match"><div class="mlabel"><span>${B.LABEL[m]}</span><span>${sc}</span></div>${rows}${tools}</div>`;
 }
 function bracketHTML(o) {
-  const t = B.resolve(o.slots, o.winners);
-  const M = m => matchHTML(m, t[m], o);
+  const t = B.resolve(o.slots, o.winners), M = m => pMatch(m, t[m], o);
   const champ = o.winners.F ? `<div class="champ">🏆 ${esc(o.winners.F)}</div>` : '';
   return `<div class="scroll"><div class="bracket">
     <div class="col"><h4>Quarterfinals · Bo3</h4><div class="pairs"><div class="pair join">${M('QF1')}${M('QF2')}</div><div class="pair join">${M('QF3')}${M('QF4')}</div></div></div>
@@ -81,213 +134,212 @@ function bracketHTML(o) {
     <div class="col"><h4>Grand Final · Bo5</h4><div class="pairs"><div class="pair single">${M('F')}${champ}</div></div></div>
   </div><div class="third">${M('T')}</div></div>`;
 }
-function bindBracket(root) {
-  root.querySelectorAll('[data-m][data-team]').forEach(el => el.onclick = () => handler && handler(el.dataset.m, el.dataset.team));
-}
-
-// ---------- shared bits ----------
-function statusChips() {
-  const n = Object.keys(S.official.results).length, start = Date.parse(S.event.playoffsStart);
-  let c;
-  if (S.official.results.F) c = '<span class="chip good">Complete</span>';
-  else if (n) c = '<span class="chip live">● LIVE</span>';
-  else { const d = Math.ceil((start - Date.now()) / 864e5); c = `<span class="chip">${d > 0 ? 'Playoffs in ' + d + ' day' + (d === 1 ? '' : 's') : 'Playoffs starting'}</span>`; }
-  return `${c}<span class="chip">${esc(S.event.playoffs)}</span><span class="chip">${esc(S.event.venue)}</span>`;
-}
-function recordHTML(live) {
-  const r = live.record || { hit: 0, miss: 0 }, d = r.hit + r.miss;
-  if (!d) return '<span class="note">No matches decided yet.</span>';
-  return `<div class="stat"><div><b>${r.hit}</b><span>Picks right</span></div><div><b>${r.miss}</b><span>Replaced</span></div><div><b>${d}</b><span>Decided</span></div></div>`;
-}
-function changesHTML(live) {
-  const c = live.changes || [];
-  if (!c.length) return '<p class="note">When a pick turns out wrong, it shows up here and the bracket updates itself.</p>';
-  return '<ul class="changes">' + c.slice(0, 12).map(x => x.match === 'slots'
-    ? `<li>${badge(x.from)} ${esc(x.from)} <span class="arrow">→</span> ${badge(x.to)} <b>${esc(x.to)}</b> <span class="note">playoff spot · ${ago(x.at)}</span></li>`
-    : `<li><span class="chip">${esc(B.LABEL[x.match])}</span>${badge(x.from)} <s class="muted">${esc(x.from)}</s> <span class="arrow">→</span> ${badge(x.to)} <b>${esc(x.to)}</b> <span class="note">${ago(x.at)}</span></li>`).join('') + '</ul>';
-}
-function leaderboardHTML(limit) {
-  const rows = S.list.slice(0, limit || 999).map((b, i) => {
-    const s = b.score, pick = b.champion;
-    return `<tr class="${b.live ? 'livetr' : ''}"><td>${b.live ? '●' : i}</td><td><a href="#/b/${b.id}"><b>${esc(b.name)}</b></a>${b.live ? ' <span class="chip live">LIVE</span>' : ''}<div class="note">${esc(b.author)}</div></td><td>${pick ? badge(pick) + ' ' + esc(pick) : '<span class="muted">—</span>'}</td><td class="num">${b.live ? (b.record ? b.record.hit + '/' + (b.record.hit + b.record.miss) : '-') : s.correct + '/' + s.decided}</td><td class="num"><b>${b.live ? '—' : s.pts}</b></td><td class="num">${b.live ? '—' : s.maxPossible}</td></tr>`;
-  });
-  return `<table><thead><tr><th>#</th><th>Bracket</th><th>Champion pick</th><th class="num">Right</th><th class="num">Pts</th><th class="num">Max</th></tr></thead><tbody>${rows.join('')}</tbody></table>
-  <p class="note" style="margin-top:12px">Points: quarterfinal 1 · semifinal 2 · final 4 · third place 1 (max ${S.maxPoints}). Brackets made after a match is decided don’t score it.</p>`;
-}
 
 // ---------- views ----------
-function viewHome() {
+function viewEvents() {
   handler = null;
-  const live = S.live, off = S.official;
-  const offReady = B.fixSlots(off.slots).some(Boolean);
-  const offHTML = offReady ? bracketHTML({ slots: off.slots, winners: B.officialWinners(off), official: off, mode: 'official', editable: false }) : '<p class="muted pad">The official playoff teams haven’t been set yet — they’re locked in once Stage 3 finishes.</p>';
-  $app.innerHTML = `
-  <div class="hero"><div><h1>${esc(S.event.name)} <em>bracket</em></h1><div class="chips">${statusChips()}</div></div>
-    <div class="row"><a class="btn pri" href="#/new">Build your bracket</a><a class="btn" href="#/brackets">All brackets</a></div></div>
-  <div class="grid2"><div>
-    <div class="card"><div class="tabs"><button class="tab ${homeTab === 'live' ? 'on' : ''}" data-tab="live">Live bracket</button><button class="tab ${homeTab === 'official' ? 'on' : ''}" data-tab="official">Official results</button></div>
-      ${homeTab === 'live' ? bracketHTML({ slots: live.slots, winners: live.picks, official: off, mode: 'pred', editable: false }) + '<p class="note" style="margin-top:10px">Green = right, red = wrong. Wrong picks are swapped for the real winner automatically.</p>' : offHTML}
-    </div></div>
-    <div><div class="card"><h3>Live bracket record</h3>${recordHTML(live)}</div>
-    <div class="card"><h3>Pick changes</h3>${changesHTML(live)}</div></div></div>
-  <div class="card"><h3>Live bracket &amp; your brackets</h3>${leaderboardHTML(10)}</div>`;
-  $app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { homeTab = b.dataset.tab; viewHome(); });
+  const groups = { live: [], upcoming: [], done: [] };
+  EVENTS.forEach(e => groups[status(e)].push(e));
+  groups.upcoming.sort((a, b) => t0(a.start) - t0(b.start));
+  const card = e => `<a class="evcard ${e.detail ? '' : 'dim'}" href="#/e/${e.id}">${chipFor(status(e))}<h3>${esc(e.name)}</h3><div class="note">${esc(fmtRange(e))}${e.start ? ' · ' : ''}${esc(e.location)} · ${e.teams} teams</div>${e.detail ? '<div class="note" style="margin-top:8px">Live board + simulator</div>' : '<div class="note" style="margin-top:8px">Info only</div>'}</a>`;
+  const sect = (t, l) => l.length ? `<div class="sh">${t}</div><div class="evgrid">${l.map(card).join('')}</div>` : '';
+  $app.innerHTML = `<div class="hero"><h1>CS2 <em>Majors</em></h1></div>${sect('Live now', groups.live)}${sect('Upcoming', groups.upcoming)}${sect('Completed', groups.done)}`;
 }
-function viewBrackets() {
+
+function viewEvent(id, sub) {
   handler = null;
-  $app.innerHTML = `<div class="hero"><h1>Your brackets</h1><a class="btn pri" href="#/new">+ New bracket</a></div><div class="card">${leaderboardHTML()}</div>`;
-}
-
-function commitDraft(off) { off.updated = Date.now(); lsSet('bg_draft_official', off); build(); render(); }
-const curOff = () => JSON.parse(JSON.stringify({ slots: S.official.slots, results: S.official.results, updated: S.official.updated || 0 }));
-const rid = () => Math.random().toString(36).slice(2, 10);
-
-function viewEditor(D) {
-  const off = S.official;
-  const slotsLocked = B.fixSlots(off.slots).every(Boolean) || Object.keys(off.results).length > 0;
-  const canEdit = D.canEdit;
-  const opts = sel => {
-    const groups = [3, 2, 1].map(st => `<optgroup label="Starts in Stage ${st}">${S.teams.filter(t => t.stage === st).map(t => `<option value="${esc(t.name)}" ${t.name === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</optgroup>`).join('');
-    return `<option value="">— choose —</option>${groups}`;
-  };
-  const slotSel = D.slots.map((t, i) => `<label>QF${(i >> 1) + 1} · ${i % 2 ? 'B' : 'A'}<select data-slot="${i}" ${canEdit && !slotsLocked ? '' : 'disabled'}>${opts(t)}</select></label>`).join('');
+  const ev = EV;
+  if (!ev) {
+    const e = EVENTS.find(x => x.id === id);
+    $app.innerHTML = e ? `<div class="hero"><div><h1>${esc(e.name)}</h1><div class="chips">${chipFor(status(e))}<span class="chip">${esc(fmtRange(e))}</span><span class="chip">${esc(e.location)}</span></div></div></div><div class="card"><p class="note">No stage data is loaded for this event yet. The live board and simulator are available for events with a data file in <code>data/events/</code>.</p></div>` : '<p class="muted pad">Event not found. <a href="#/events">All majors</a></p>';
+    return;
+  }
+  const st = status(ev);
+  const { runs } = RUNS;
+  const sel = stageSel[ev.id] != null ? stageSel[ev.id] : (() => { let k = 0; runs.forEach((r, i) => { if (stageState(r) !== 'upcoming') k = i; }); return k; })();
+  const stg = ev.stages[sel];
+  const days = Math.ceil((t0(ev.start) - Date.now()) / DAY);
+  const out = {}; runs.forEach((r, i) => r && r.eliminated.forEach(t => { out[t] = ev.stages[i].name; }));
+  const po = poOfficial(ev, runs);
+  const adm = isAdmin();
+  const groupsHTML = ev.stages.map((s, i) => { const ss = stageState(runs[i]); return `<button class="gev ${i === sel ? 'on' : ''}" data-stage="${i}"><b>${esc(s.name)}</b><span>${esc(s.dates)}</span>${chipFor(ss === 'done' ? 'done' : ss === 'live' ? 'live' : 'upcoming').replace('Completed', 'Done')}</button>`; }).join('');
+  const teamsHTML = ev.seeds.map((n, i) => { const entry = ev.stages.find(s => s.entrants.includes(n)); return `<div class="tcard ${out[n] ? 'elim' : ''}">${badge(n, 'lg')}<b>${esc(n)}</b><span>${out[n] ? 'Out · ' + esc(out[n]) : 'Starts ' + esc(entry ? entry.name.replace(' & Playoffs', '') : '')} · #${i + 1}</span></div>`; }).join('');
   $app.innerHTML = `
-  <div class="hero"><div><h1>${D.isNew ? 'New bracket' : esc(D.name)}</h1><div class="chips">${D.live ? '<span class="chip live">LIVE</span>' : ''}${D.isNew ? '' : `<span class="chip">by ${esc(D.author || 'anon')}</span>`}${statusChips()}</div></div></div>
-  <div class="grid2"><div><div class="card" id="bwrap"></div></div><div>
-    <div class="card"><h3>${canEdit ? 'Your bracket' : 'Bracket'}</h3>
-      <div class="field"><label>Name</label><input id="name" maxlength="40" value="${esc(D.name)}" ${canEdit ? '' : 'disabled'}></div>
-      ${D.live ? '' : `<div class="field"><label>Your name</label><input id="author" maxlength="24" value="${esc(D.author)}" ${canEdit ? '' : 'disabled'}></div>`}
-      <div class="row">${canEdit ? `<button class="btn pri" id="save">${D.isNew ? 'Save bracket' : 'Save changes'}</button>` : ''}${D.shared ? '<button class="btn pri" id="dupe">Save a copy to my browser</button>' : (!D.isNew ? `<button class="btn" id="dupe">${D.live ? 'Snapshot live bracket' : 'Make a copy'}</button>` : '')}${!D.isNew && !D.live ? '<button class="btn" id="share">Copy share link</button>' : ''}${D.live && canEdit ? '<button class="btn" id="copylive">Copy live.json</button>' : ''}${canEdit && !D.isNew && !D.live ? '<button class="btn danger" id="del">Delete</button>' : ''}</div>
-      ${D.isNew ? `<p class="note" style="margin-top:12px">Brackets are saved in this browser. Use <b>Copy share link</b> afterwards to send one to friends.</p><div class="row" style="margin-top:8px"><button class="btn" id="fromlive">Start from the live bracket</button></div>` : ''}
-      ${D.live && canEdit ? '<p class="note" style="margin-top:12px">Saved as a local draft. To publish it, click <b>Copy live.json</b> and paste it over <code>data/live.json</code> in the repo.</p>' : ''}
-      ${D.live && !canEdit ? '<p class="note" style="margin-top:12px">The live bracket fixes itself as results are published.</p>' : ''}
-    </div>
-    <div class="card"><h3>Playoff teams</h3><div class="slots">${slotSel}</div>
-      <p class="note" style="margin-top:10px">${slotsLocked ? 'Teams are locked now that the playoffs are set.' : 'Pick the 8 teams you think make the playoffs, in quarterfinal order. Then click winners in the bracket.'}</p></div>
-    ${D.live ? `<div class="card"><h3>Record</h3>${recordHTML(S.live)}</div><div class="card"><h3>Pick changes</h3>${changesHTML(S.live)}</div>` : (D.score ? `<div class="card"><h3>Score</h3><div class="stat"><div><b>${D.score.pts}</b><span>Points</span></div><div><b>${D.score.correct}/${D.score.decided}</b><span>Right</span></div><div><b>${D.score.maxPossible}</b><span>Max possible</span></div></div></div>` : '')}
-  </div></div>`;
+  <div class="hero"><div><h1>${esc(ev.name)}</h1><div class="chips">${chipFor(st)}<span class="chip">${esc(fmtRange(ev))}</span><span class="chip">${esc(ev.location)}</span><span class="chip">${esc(ev.prize)}</span>${st === 'upcoming' ? `<span class="chip up">Starts in ${days} day${days === 1 ? '' : 's'}</span>` : ''}</div></div>
+    <div class="row"><button class="btn pri" id="opensim">Open simulator</button><a class="btn" href="${esc(ev.hltv)}" target="_blank" rel="noopener">HLTV</a></div></div>
+  <div class="card"><h3>Grouped events</h3><div class="groups">${groupsHTML}</div></div>
+  <div class="card"><h3><span>Group play · ${esc(stg.name.replace(' & Playoffs', ''))}</span><button class="btn sm" id="opensim2">Simulator</button></h3>
+    ${swissHTML(runs[sel], { mode: 'live', stage: stg.id })}
+    ${runs[sel] && stageState(runs[sel]) === 'upcoming' && !stg.entrants.length ? '' : `<p class="note" style="margin-top:8px">Only played matches are shown as pairs; the rest are filled in as results come in.</p>`}</div>
+  ${sel === ev.stages.length - 1 ? `<div class="card"><h3>Playoffs${adm ? ' — admin: click a winner' : ''}</h3><div id="powrap">${bracketHTML({ slots: po.slots, winners: B.officialWinners(po), official: po, mode: 'official', editable: adm })}</div></div>` : ''}
+  <div class="card"><h3>Teams attending</h3><div class="teams">${teamsHTML}</div><p class="note" style="margin-top:10px">${esc(ev.seedsNote || '')}</p></div>`;
+  $app.querySelectorAll('[data-stage].gev').forEach(b => b.onclick = () => { stageSel[ev.id] = +b.dataset.stage; viewEvent(id); });
+  const open = () => go('#/e/' + ev.id + '/sim');
+  document.getElementById('opensim').onclick = open; document.getElementById('opensim2').onclick = open;
+  if (adm) bindPlayoffAdmin(document.getElementById('powrap'));
+}
 
-  const paint = () => {
-    const w = document.getElementById('bwrap');
-    w.innerHTML = bracketHTML({ slots: D.slots, winners: D.picks, official: off, mode: 'pred', editable: canEdit }) +
-      `<p class="note" style="margin-top:10px">${canEdit ? 'Click a team to pick it as the winner. Matches already decided are locked.' : ''}</p>`;
-    bindBracket(w);
-  };
-  handler = (m, t) => { D.picks = B.setPick(D.slots, D.picks, m, t); paint(); };
-  paint();
-  $app.querySelectorAll('[data-slot]').forEach(sel => sel.onchange = () => {
-    const r = B.setSlot(D.slots, D.picks, +sel.dataset.slot, sel.value || null);
-    if (r.error) { toast('That team is already in the bracket', true); sel.value = D.slots[+sel.dataset.slot] || ''; return; }
-    D.slots = r.slots; D.picks = r.picks; viewEditor(D);
+// ---------- simulator ----------
+const simKey = id => 'bg_sim_' + id;
+function loadSim(id, code) {
+  if (code) { try { const s = b64d(code); SIM = { picks: s.picks || {}, po: s.po || {} }; lsSet(simKey(id), SIM); return; } catch {} }
+  SIM = lsGet(simKey(id), null) || { picks: {}, po: {} };
+}
+const saveSim = () => lsSet(simKey(EV.id), { picks: SIM.picks, po: SIM.po });
+function openSimulator() {
+  const ev = EV; if (!ev) return;
+  const modal = document.getElementById('modal') || Object.assign(document.createElement('div'), { id: 'modal', className: 'modal' });
+  if (!modal.parentNode) document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+  paintSim(modal);
+}
+function closeSimulator() { const m = document.getElementById('modal'); if (m) m.remove(); document.body.style.overflow = ''; }
+function paintSim(modal) {
+  const ev = EV, tabs = ev.stages.map(s => s.name.replace(' & Playoffs', '')).concat(['Playoffs']);
+  const sim = runAll(ev, SIM.picks);
+  const isPO = simTab === ev.stages.length;
+  let body = '';
+  if (!isPO) {
+    const run = sim.runs[simTab], st = ev.stages[simTab];
+    body = run ? swissHTML(run, { mode: 'sim', stage: st.id }) : `<div class="lock"><h3>Finish the previous stage first</h3><p class="note">Stage ${simTab + 1} starts with the 8 teams that advance from Stage ${simTab}, joined by its 8 new entrants.</p></div>`;
+  } else {
+    const last = sim.runs[sim.runs.length - 1], slots = ev.playoffs.slots || SW.playoffSlots(last);
+    if (!slots) body = '<div class="lock"><h3>Finish Stage 3 first</h3><p class="note">The 8 teams that go 3-0, 3-1 or 3-2 make the playoffs.</p></div>';
+    else {
+      const off = poOfficial(ev, sim.runs); off.slots = slots;
+      const cleaned = B.cleanOfficial(off);
+      const r = B.reconcile({ slots, picks: B.normalize(slots, SIM.po) }, cleaned);
+      SIM._po = { slots, winners: r.picks, official: cleaned };
+      body = bracketHTML({ slots, winners: r.picks, official: cleaned, mode: 'sim', editable: true }) + `<p class="note" style="margin-top:10px">Click a team to pick the winner. Real results replace your picks automatically${r.changes.length ? ` — ${r.changes.length} replaced so far` : ''}.</p>`;
+    }
+  }
+  modal.innerHTML = `<div class="sheet"><button class="x" id="simx" aria-label="Close">✕</button><h2>Simulator for ${esc(ev.name)}</h2>
+    <div class="stabs">${tabs.map((t, i) => `<button class="${i === simTab ? 'on' : ''}" data-tab="${i}">${esc(t)}</button>`).join('')}</div>${body}
+    <div class="row" style="margin-top:16px;justify-content:space-between"><span class="note">Picks save automatically in this browser. Matches with a real result are locked to the real winner.</span>
+    <span class="row"><button class="btn" id="simshare">Copy share link</button><button class="btn danger" id="simreset">Reset everything</button></span></div></div>`;
+  modal.onclick = e => { if (e.target === modal) go('#/e/' + ev.id); };
+  document.getElementById('simx').onclick = () => go('#/e/' + ev.id);
+  modal.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { simTab = +b.dataset.tab; paintSim(modal); });
+  document.getElementById('simshare').onclick = () => copy(location.origin + location.pathname + '#/e/' + ev.id + '/sim/' + b64e({ picks: SIM.picks, po: SIM.po }), 'Share link copied');
+  document.getElementById('simreset').onclick = () => { if (confirm('Clear all your simulator picks?')) { SIM = { picks: {}, po: {} }; saveSim(); paintSim(modal); } };
+  modal.querySelectorAll('[data-sm]').forEach(b => b.onclick = () => {
+    const st = b.dataset.stage; SIM.picks[st] = SIM.picks[st] || {};
+    const k = b.dataset.sm, t = b.dataset.t;
+    if (SIM.picks[st][k] === t) delete SIM.picks[st][k]; else SIM.picks[st][k] = t;
+    saveSim(); paintSim(modal);
   });
-  const val = id => { const e = document.getElementById(id); return e ? e.value : undefined; };
-  const on = (id, fn) => { const e = document.getElementById(id); if (e) e.onclick = async () => { try { await fn(); } catch (e2) { toast(e2.message, true); } }; };
-  const make = extra => {
-    const id = rid();
-    let slots = D.slots;
-    if (B.fixSlots(off.slots).every(Boolean)) slots = off.slots.slice();
-    const picks = Object.assign({}, D.picks);
-    Object.keys(off.results).forEach(m => { picks[m] = off.results[m].winner; });
-    const b = Object.assign({ id, name: val('name') || 'My bracket', author: val('author') || D.author || 'anon', slots, picks: B.normalize(slots, picks), baseline: Object.keys(off.results), created: Date.now() }, extra);
-    const all = lsGet('bg_brackets', {}); all[id] = b; lsSet('bg_brackets', all);
-    build(); go('#/b/' + id); toast('Bracket saved');
-  };
-  on('save', async () => {
-    if (D.live) { lsSet('bg_draft_live', { name: val('name') || D.name, author: D.author, slots: D.slots, picks: D.picks }); build(); toast('Live bracket saved as a local draft'); return viewBracket('live'); }
-    if (D.isNew) return make({});
-    const all = lsGet('bg_brackets', {}), old = all[D.id];
-    const picks = Object.assign({}, D.picks);
-    Object.keys(off.results).forEach(m => { picks[m] = old.picks[m]; });
-    all[D.id] = Object.assign(old, { name: val('name') || old.name, author: val('author') || old.author, picks: B.normalize(old.slots, picks), slots: slotsLocked ? old.slots : D.slots });
-    lsSet('bg_brackets', all); build(); toast('Saved'); viewBracket(D.id);
+  modal.querySelectorAll('[data-ctl]').forEach(b => b.onclick = () => {
+    const st = ev.stages[simTab], run = sim.runs[simTab]; if (!run) return;
+    const seed = seedFn(ev), r = +b.dataset.round, P = (SIM.picks[st.id] = SIM.picks[st.id] || {});
+    if (b.dataset.ctl === 'reset') run.rounds.slice(r - 1).forEach(R => R.groups.forEach(g => g.matches.forEach(m => { if (m.src !== 'real') delete P[m.key]; })));
+    else run.rounds[r - 1].groups.forEach(g => g.matches.forEach(m => {
+      if (m.src === 'real') return;
+      P[m.key] = b.dataset.ctl === 'seed' ? (seed(m.a) <= seed(m.b) ? m.a : m.b) : (Math.random() < .5 ? m.a : m.b);
+    }));
+    saveSim(); paintSim(modal);
   });
-  on('dupe', async () => make({ name: (val('name') || 'Bracket') + (D.live ? ' (snapshot)' : D.shared ? '' : ' (copy)') }));
-  on('del', async () => { if (!confirm('Delete this bracket?')) return; const all = lsGet('bg_brackets', {}); delete all[D.id]; lsSet('bg_brackets', all); build(); go('#/brackets'); });
-  on('share', async () => copy(location.origin + location.pathname + '#/s/' + b64e({ name: D.name, author: D.author, slots: D.slots, picks: D.picks }), 'Share link copied'));
-  on('copylive', async () => copy(JSON.stringify({ name: val('name') || D.name, author: D.author, slots: D.slots, picks: D.picks }, null, 2), 'live.json copied'));
-  on('fromlive', async () => { D.slots = S.live.slots.slice(); D.picks = Object.assign({}, S.live.picks); viewEditor(D); });
-}
-function viewNew() {
-  const off = S.official;
-  const slots = B.fixSlots(B.fixSlots(off.slots).every(Boolean) ? off.slots : null);
-  const picks = {};
-  Object.keys(off.results).forEach(m => { picks[m] = off.results[m].winner; });
-  viewEditor({ isNew: true, canEdit: true, name: 'My bracket', author: '', slots, picks: B.normalize(slots, picks) });
-}
-function viewBracket(id) {
-  if (id === 'live') { const l = S.live; return viewEditor({ id: 'live', name: l.name, author: l.author, live: true, slots: B.fixSlots(l.slots), picks: l.picks, canEdit: isAdmin() }); }
-  const b = lsGet('bg_brackets', {})[id];
-  if (!b) { handler = null; $app.innerHTML = '<p class="muted pad">That bracket isn’t saved in this browser. Brackets live in the browser that made them — ask for a share link. <a href="#/brackets">Back</a></p>'; return; }
-  viewEditor({ id: b.id, name: b.name, author: b.author, slots: B.fixSlots(b.slots), picks: b.picks, canEdit: true, score: B.score(b, S.official) });
-}
-function viewShared(code) {
-  try {
-    const b = b64d(code);
-    const slots = B.fixSlots(b.slots), picks = B.normalize(slots, b.picks || {});
-    viewEditor({ name: String(b.name || 'Shared bracket').slice(0, 40), author: String(b.author || '').slice(0, 24), shared: true, slots, picks, canEdit: false, score: B.score({ picks }, S.official) });
-  } catch { $app.innerHTML = '<p class="muted pad">That share link is broken.</p>'; }
+  modal.querySelectorAll('[data-pm]').forEach(el => el.onclick = () => {
+    const s = SIM._po; SIM.po = B.setPick(s.slots, s.winners, el.dataset.pm, el.dataset.team); saveSim(); paintSim(modal);
+  });
 }
 
 // ---------- admin ----------
+function draft() { return JSON.parse(JSON.stringify(EV)); }
+function saveDraft(ev) { ev.matches = ev.matches || []; lsSet('bg_draft_' + ev.id, ev); EV = ev; RUNS = runAll(EV); route(); }
+function bindPlayoffAdmin(wrap) {
+  if (!wrap) return;
+  wrap.querySelectorAll('[data-pm]').forEach(el => el.onclick = () => {
+    const m = el.dataset.pm, sc = document.getElementById('sc-' + m), ev = draft(), po = poOfficial(ev, RUNS.runs);
+    po.results[m] = { winner: el.dataset.team, score: sc ? sc.value.replace(/[^0-9\-]/g, '').slice(0, 8) : '' };
+    ev.playoffs = { slots: ev.playoffs.slots, results: B.cleanOfficial(po).results }; saveDraft(ev);
+  });
+  wrap.querySelectorAll('[data-pclear]').forEach(el => el.onclick = () => { const ev = draft(); delete ev.playoffs.results[el.dataset.pclear]; B.cleanOfficial({ slots: poOfficial(ev, RUNS.runs).slots, results: ev.playoffs.results }); saveDraft(ev); });
+}
 function viewAdmin() {
   handler = null; lsSet('bg_admin_mode', true);
-  const off = S.official;
-  const opts = sel => [3, 2, 1].map(st => `<optgroup label="Stage ${st} entrants">${S.teams.filter(t => t.stage === st).map(t => `<option value="${esc(t.name)}" ${t.name === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</optgroup>`).join('');
-  const slotSel = B.fixSlots(off.slots).map((t, i) => `<label>QF${(i >> 1) + 1} · ${i % 2 ? 'B' : 'A'}<select data-oslot="${i}"><option value="">—</option>${opts(t)}</select></label>`).join('');
+  const ev = EV;
+  if (!ev) { $app.innerHTML = '<div class="hero"><h1>Admin</h1></div><div class="card"><p class="note">Pick an event with data from the menu above.</p></div>'; return; }
+  const hasDraft = !!lsGet('bg_draft_' + ev.id, null);
+  const lists = RUNS.lists;
+  const stOpts = ev.stages.map((s, i) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const rows = ev.matches.map((m, i) => `<tr><td>${esc(ev.stages.find(s => s.id === m.stage)?.name || m.stage)}</td><td>R${m.round}</td><td>${badge(m.a)} ${esc(m.a)} vs ${badge(m.b)} ${esc(m.b)}</td><td><b>${esc(m.winner)}</b> ${esc(m.score || '')}</td><td><button class="btn sm danger" data-del="${i}">Delete</button></td></tr>`).join('') || '<tr><td colspan="5" class="note">No real results yet.</td></tr>';
   $app.innerHTML = `
-  <div class="hero"><div><h1>Admin <em>control room</em></h1><div class="chips">${statusChips()}${S.drafts.official ? '<span class="chip live">Unpublished local draft</span>' : ''}</div></div><div class="row"><a class="btn" href="#/b/live">Edit live bracket</a></div></div>
-  <div class="card"><p class="note">This site is static (GitHub Pages), so changes you make here live in <b>your browser only</b> until you publish them: click <b>Copy results.json</b> and paste it over <code>data/results.json</code> in the repo (GitHub → file → pencil icon → Commit). Everyone sees it within a minute or two.</p></div>
-  <div class="grid2"><div><div class="card"><h3>Official bracket — click the winner of each match</h3><div id="owrap"></div></div></div>
-  <div><div class="card"><h3>Official playoff teams</h3><div class="slots">${slotSel}</div>
-    <div class="row" style="margin-top:12px"><button class="btn pri" id="saveslots">Save teams</button></div>
-    <p class="note" style="margin-top:10px">The 8 Stage 3 qualifiers in quarterfinal order. The live bracket swaps in the real teams automatically.</p></div>
-  <div class="card"><h3>Publish</h3><div class="row"><button class="btn pri" id="copyres">Copy results.json</button><button class="btn" id="dlres">Download</button></div>
-    <div class="row" style="margin-top:10px"><button class="btn danger" id="reset">Clear results</button><button class="btn" id="discard">Discard local drafts</button></div></div></div></div>`;
-  const wrap = document.getElementById('owrap');
-  const paint = () => {
-    wrap.innerHTML = bracketHTML({ slots: S.official.slots, winners: B.officialWinners(S.official), official: S.official, mode: 'official', editable: true });
-    bindBracket(wrap);
-    wrap.querySelectorAll('[data-clear]').forEach(b => b.onclick = () => { const o = curOff(); delete o.results[b.dataset.clear]; commitDraft(B.cleanOfficial(o)); });
+  <div class="hero"><div><h1>Admin <em>control room</em></h1><div class="chips">${chipFor(status(ev))}<span class="chip">${esc(ev.name)}</span>${hasDraft ? '<span class="chip live">Unpublished local draft</span>' : ''}</div></div><div class="row"><button class="btn" id="exit">Exit admin</button></div></div>
+  <div class="card"><p class="note">This site is static, so edits here live in <b>your browser only</b> until you publish: <b>Copy event JSON</b> and paste it over <code>data/events/${esc(ev.id)}.json</code> on GitHub (file → pencil → Commit). Everyone sees it within a couple of minutes. Playoff results: open the event page while in admin mode and click winners.</p></div>
+  <div class="card"><h3>Add a real Swiss result</h3><div class="row">
+    <select id="a-stage">${stOpts}</select><select id="a-round">${[1, 2, 3, 4, 5].map(r => `<option value="${r}">Round ${r}</option>`).join('')}</select>
+    <select id="a-a"></select><span class="note">vs</span><select id="a-b"></select>
+    <select id="a-w"><option value="a">Team A won</option><option value="b">Team B won</option></select>
+    <input id="a-s" placeholder="2-1" maxlength="8" style="width:70px"><button class="btn pri" id="a-add">Add</button></div>
+    <p class="note" style="margin-top:8px">Enter the pairing exactly as played. Later pairings and records update from these.</p></div>
+  <div class="card"><h3>Real results (${ev.matches.length})</h3><table><thead><tr><th>Stage</th><th>Rd</th><th>Match</th><th>Result</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="card"><h3>Publish</h3><div class="row"><button class="btn pri" id="copyj">Copy event JSON</button><button class="btn" id="dlj">Download</button><button class="btn danger" id="disc">Discard local draft</button></div></div>`;
+  const fillTeams = () => {
+    const i = ev.stages.findIndex(s => s.id === document.getElementById('a-stage').value);
+    const names = (lists[i] || ev.stages[i].entrants.concat(i ? [] : [])).slice();
+    if (i > 0) ev.seeds.forEach(n => { if (!names.includes(n)) names.push(n); });
+    const o = names.map(n => `<option>${esc(n)}</option>`).join('');
+    document.getElementById('a-a').innerHTML = o; document.getElementById('a-b').innerHTML = o;
+    if (names.length > 1) document.getElementById('a-b').selectedIndex = 1;
   };
-  handler = (m, t) => {
-    const sc = document.getElementById('sc-' + m), o = curOff();
-    o.results[m] = { winner: t, score: sc ? sc.value.replace(/[^0-9\-]/g, '').slice(0, 8) : '' };
-    commitDraft(B.cleanOfficial(o)); toast(B.LABEL[m] + ': ' + t);
-  };
-  paint();
+  fillTeams(); document.getElementById('a-stage').onchange = fillTeams;
   const on = (id, fn) => { document.getElementById(id).onclick = fn; };
-  const json = () => JSON.stringify(curOff(), null, 2);
-  on('saveslots', () => {
-    const slots = [...$app.querySelectorAll('[data-oslot]')].map(s => s.value || null);
-    const seen = slots.filter(Boolean); if (new Set(seen).size !== seen.length) return toast('A team appears twice', true);
-    const o = curOff(); o.slots = slots; commitDraft(B.cleanOfficial(o)); toast('Playoff teams saved (local draft)');
+  on('a-add', () => {
+    const v = id => document.getElementById(id).value, a = v('a-a'), b = v('a-b');
+    if (a === b) return toast('Pick two different teams', true);
+    const d = draft(); d.matches.push({ stage: v('a-stage'), round: +v('a-round'), a, b, winner: v('a-w') === 'a' ? a : b, score: v('a-s').replace(/[^0-9\-]/g, '') });
+    saveDraft(d); toast('Result added (local draft)');
   });
-  on('copyres', () => copy(json(), 'results.json copied — paste it into data/results.json'));
-  on('dlres', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json()], { type: 'application/json' })); a.download = 'results.json'; a.click(); });
-  on('reset', () => { if (!confirm('Clear all official results (local draft)?')) return; const o = curOff(); o.results = {}; commitDraft(o); });
-  on('discard', () => { lsSet('bg_draft_official', null); lsSet('bg_draft_live', null); build(); render(); toast('Drafts discarded'); });
+  $app.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const d = draft(); d.matches.splice(+b.dataset.del, 1); saveDraft(d); });
+  const json = () => JSON.stringify(EV, null, 1);
+  on('copyj', () => copy(json(), 'Event JSON copied'));
+  on('dlj', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json()], { type: 'application/json' })); a.download = ev.id + '.json'; a.click(); });
+  on('disc', async () => { lsSet('bg_draft_' + ev.id, null); EV = await loadEvent(ev.id); RUNS = runAll(EV); route(); toast('Draft discarded'); });
+  on('exit', async () => { lsSet('bg_admin_mode', false); EV = await loadEvent(ev.id); RUNS = runAll(EV); go('#/e/' + ev.id); });
 }
 
 // ---------- router ----------
-function render() {
-  if (!S) return;
-  const h = location.hash || '#/';
-  let m;
-  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', h === a.getAttribute('href') || (a.dataset.r === 'brackets' && /^#\/(b|s)\//.test(h))));
-  if ((m = h.match(/^#\/b\/([\w-]+)/))) return viewBracket(m[1]);
-  if ((m = h.match(/^#\/s\/([\w-]+)/))) return viewShared(m[1]);
-  if (h === '#/new') return viewNew();
-  if (h === '#/brackets') return viewBrackets();
-  if (h === '#/admin') return viewAdmin();
-  viewHome();
+function currentEventId() { const m = (location.hash || '').match(/^#\/e\/([\w-]+)/); return m ? m[1] : null; }
+function pickDefault() {
+  const det = EVENTS.filter(e => e.detail);
+  return det.find(e => status(e) === 'live') || det.filter(e => status(e) === 'upcoming').sort((a, b) => t0(a.start) - t0(b.start))[0] || det[0] || EVENTS[0];
 }
-window.addEventListener('hashchange', render);
+function fillSelect(curId) {
+  const sel = document.getElementById('evsel');
+  sel.innerHTML = EVENTS.map(e => `<option value="${e.id}" ${e.id === curId ? 'selected' : ''}>${status(e) === 'live' ? '● LIVE · ' : ''}${esc(e.name)}</option>`).join('');
+  sel.onchange = () => go('#/e/' + sel.value);
+}
+async function route() {
+  const h = location.hash || '#/';
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', h === a.getAttribute('href')));
+  let m;
+  if (h === '#/' || h === '') { const d = pickDefault(); if (d) { location.replace('#/e/' + d.id); } return; }
+  if (h === '#/events') { closeSimulator(); fillSelect(null); return viewEvents(); }
+  if (h === '#/admin') { const d = lsGet('bg_last_event', null) || (pickDefault() || {}).id; if (!EV || EV.id !== d) { EV = await loadEvent(d); RUNS = EV && runAll(EV); } fillSelect(d); return viewAdmin(); }
+  if ((m = h.match(/^#\/e\/([\w-]+)(?:\/(sim)(?:\/([\w-]+))?)?$/))) {
+    const id = m[1];
+    if (!EV || EV.id !== id) { const info = EVENTS.find(e => e.id === id); EV = info && info.detail ? await loadEvent(id) : null; RUNS = EV && runAll(EV); }
+    lsSet('bg_last_event', id); fillSelect(id);
+    viewEvent(id);
+    if (m[2] && EV) { if (!SIM || SIM._id !== id || m[3]) { loadSim(id, m[3]); SIM._id = id; } simOpen = true; openSimulator(); if (m[3]) history.replaceState(null, '', '#/e/' + id + '/sim'); }
+    else { simOpen = false; closeSimulator(); }
+    return;
+  }
+  location.replace('#/');
+}
+window.addEventListener('hashchange', route);
+
 // Poll the published data files so an open page picks up new results.
 setInterval(async () => {
-  if (document.hidden) return;
-  const h = location.hash || '#/';
-  if (h === '#/new' || h === '#/admin' || /^#\/b\//.test(h) && h !== '#/b/live') return;
-  try { const before = JSON.stringify(FILES); await load(); if (JSON.stringify(FILES) !== before) { render(); toast('Results updated'); } } catch {}
+  if (document.hidden || simOpen || isAdmin() || !EV) return;
+  try {
+    const before = RAW[EV.id]; const fresh = await loadEvent(EV.id);
+    if (fresh && RAW[EV.id] !== before) { EV = fresh; RUNS = runAll(EV); viewEvent(EV.id); toast('Results updated'); }
+    document.getElementById('conn').classList.add('on');
+  } catch { document.getElementById('conn').classList.remove('on'); }
 }, 30000);
-(async () => { try { await load(); render(); const dot = document.getElementById('conn'); if (dot) dot.classList.add('on'); } catch (e) { $app.innerHTML = '<p class="muted pad">Couldn’t load the data files.</p>'; } })();
+(async () => {
+  try { await loadEvents(); await route(); document.getElementById('conn').classList.add('on'); }
+  catch (e) { $app.innerHTML = '<p class="muted pad">Couldn’t load the data files.</p>'; }
+})();
 })();

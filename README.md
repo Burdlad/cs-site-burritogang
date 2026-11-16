@@ -1,13 +1,17 @@
-# cs.burritogang.com — CS Major bracket (GitHub Pages)
+# cs.burritogang.com — CS Major live board + simulator (GitHub Pages)
 
-Static site, no build step. PGL Major Singapore 2026 playoffs.
+Static site. Pick an event (the one that's live is chosen automatically, else the next upcoming), watch the Swiss "Group play" board per stage, and use the **Simulator** (Stage 1 → 2 → 3 → Playoffs) to build your own bracket. Real results always replace your picks.
 
-- `data/results.json` — official playoff teams + results. Edit this to update the site for everyone.
-- `data/live.json` — the live bracket's picks. It auto-corrects against results.json when viewed.
-- Open `/#/admin` to enter results with clicks, then **Copy results.json** and paste it into `data/results.json` on GitHub (open file → pencil → Commit). Pages redeploys in ~1 min; open pages refresh themselves every 30s.
-- Other people's brackets are saved in their own browser; "Copy share link" sends one to a friend.
+## Files
+- `data/events.json` — list of majors (status is computed from dates).
+- `data/events/<id>.json` — one event: teams, `seeds` (seed order), stages (entrants, dates, `hltvEventId`), real `matches`, `playoffs`.
+- `swiss.js` — Swiss engine (pairings, records, advancement). `bracket.js` — playoff bracket logic.
+
+## Updating results
+1. **Automatic (best effort):** set each stage's `hltvEventId` in the event JSON (HLTV lists every stage as its own event; id = the number in `hltv.org/events/<id>/...`). `.github/workflows/sync.yml` runs `scripts/sync.mjs` every 10 min and commits changes. HLTV is behind Cloudflare, so GitHub's servers may get blocked — if so the run just changes nothing.
+2. **Manual:** open `/#/admin`, add Swiss results with the form, click playoff winners on the event page, then **Copy event JSON** and paste it into `data/events/<id>.json` on GitHub.
+
+Seed order in the event file is an estimate — fix `seeds` to the official seeding. Later-round Swiss pairings in the simulator use Buchholz/seed pairing (no rematches), which may differ slightly from Valve's.
 
 ## Publish
-1. Create a new public repo (e.g. `cs-burritogang`) and upload these files to the root of `main`.
-2. Repo → Settings → Pages → Source: Deploy from a branch → `main` / root.
-3. Custom domain: Settings → Pages → `cs.burritogang.com` (the `CNAME` file already says this). At your DNS provider add a CNAME record: `cs` → `<your-github-username>.github.io`. Then tick "Enforce HTTPS".
+Settings → Pages → Deploy from branch → `main` / root. `CNAME` is set to cs.burritogang.com.

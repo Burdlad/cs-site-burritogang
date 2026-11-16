@@ -1,0 +1,320 @@
+{
+ "id": "pgl-singapore-2026",
+ "name": "PGL Major Singapore 2026",
+ "short": "PGL Singapore",
+ "start": "2026-11-24",
+ "end": "2026-12-13",
+ "location": "Singapore",
+ "prize": "$1,250,000",
+ "hltv": "https://www.hltv.org/events",
+ "seedsNote": "Seed order is an estimate (VRS-style). Reorder \"seeds\" to match the official seeding; real pairings come from \"matches\".",
+ "seeds": [
+  "MOUZ",
+  "Team Vitality",
+  "Team Spirit",
+  "Team Falcons",
+  "FURIA Esports",
+  "Aurora Gaming",
+  "BetBoom Team",
+  "Legacy",
+  "Natus Vincere",
+  "The MongolZ",
+  "G2 Esports",
+  "Astralis",
+  "FUT Esports",
+  "1win Team",
+  "Nemiga Gaming",
+  "MIBR",
+  "PARIVISION",
+  "FaZe Clan",
+  "9z Team",
+  "Team Liquid",
+  "HEROIC",
+  "Ninjas in Pyjamas",
+  "M80",
+  "Eternal Fire",
+  "100 Thieves",
+  "Imperial Esports",
+  "FlyQuest",
+  "BC.Game Esports",
+  "Lynn Vision",
+  "Chinggis Warriors",
+  "DENDELE",
+  "Wildcard"
+ ],
+ "teams": [
+  {
+   "name": "MOUZ",
+   "tag": "MOUZ",
+   "aliases": []
+  },
+  {
+   "name": "Team Vitality",
+   "tag": "VIT",
+   "aliases": [
+    "Vitality"
+   ]
+  },
+  {
+   "name": "Team Spirit",
+   "tag": "SPI",
+   "aliases": [
+    "Spirit"
+   ]
+  },
+  {
+   "name": "Team Falcons",
+   "tag": "FAL",
+   "aliases": [
+    "Falcons"
+   ]
+  },
+  {
+   "name": "FURIA Esports",
+   "tag": "FUR",
+   "aliases": [
+    "FURIA"
+   ]
+  },
+  {
+   "name": "Aurora Gaming",
+   "tag": "AUR",
+   "aliases": [
+    "Aurora"
+   ]
+  },
+  {
+   "name": "BetBoom Team",
+   "tag": "BB",
+   "aliases": [
+    "BetBoom"
+   ]
+  },
+  {
+   "name": "Legacy",
+   "tag": "LEG",
+   "aliases": []
+  },
+  {
+   "name": "Natus Vincere",
+   "tag": "NAVI",
+   "aliases": [
+    "NAVI",
+    "NaVi"
+   ]
+  },
+  {
+   "name": "The MongolZ",
+   "tag": "MGZ",
+   "aliases": [
+    "MongolZ"
+   ]
+  },
+  {
+   "name": "G2 Esports",
+   "tag": "G2",
+   "aliases": [
+    "G2"
+   ]
+  },
+  {
+   "name": "Astralis",
+   "tag": "AST",
+   "aliases": []
+  },
+  {
+   "name": "FUT Esports",
+   "tag": "FUT",
+   "aliases": [
+    "FUT"
+   ]
+  },
+  {
+   "name": "1win Team",
+   "tag": "1WIN",
+   "aliases": [
+    "1win"
+   ]
+  },
+  {
+   "name": "Nemiga Gaming",
+   "tag": "NEM",
+   "aliases": [
+    "Nemiga"
+   ]
+  },
+  {
+   "name": "MIBR",
+   "tag": "MIBR",
+   "aliases": []
+  },
+  {
+   "name": "PARIVISION",
+   "tag": "PARI",
+   "aliases": [
+    "Parivision"
+   ]
+  },
+  {
+   "name": "FaZe Clan",
+   "tag": "FAZE",
+   "aliases": [
+    "FaZe"
+   ]
+  },
+  {
+   "name": "9z Team",
+   "tag": "9Z",
+   "aliases": [
+    "9z"
+   ]
+  },
+  {
+   "name": "Team Liquid",
+   "tag": "TL",
+   "aliases": [
+    "Liquid"
+   ]
+  },
+  {
+   "name": "HEROIC",
+   "tag": "HER",
+   "aliases": [
+    "Heroic"
+   ]
+  },
+  {
+   "name": "Ninjas in Pyjamas",
+   "tag": "NIP",
+   "aliases": [
+    "NIP"
+   ]
+  },
+  {
+   "name": "M80",
+   "tag": "M80",
+   "aliases": []
+  },
+  {
+   "name": "Eternal Fire",
+   "tag": "EF",
+   "aliases": []
+  },
+  {
+   "name": "100 Thieves",
+   "tag": "100T",
+   "aliases": []
+  },
+  {
+   "name": "Imperial Esports",
+   "tag": "IMP",
+   "aliases": [
+    "Imperial"
+   ]
+  },
+  {
+   "name": "FlyQuest",
+   "tag": "FQ",
+   "aliases": []
+  },
+  {
+   "name": "BC.Game Esports",
+   "tag": "BC",
+   "aliases": [
+    "BC.Game"
+   ]
+  },
+  {
+   "name": "Lynn Vision",
+   "tag": "LVG",
+   "aliases": [
+    "Lynn Vision Gaming"
+   ]
+  },
+  {
+   "name": "Chinggis Warriors",
+   "tag": "CW",
+   "aliases": []
+  },
+  {
+   "name": "DENDELE",
+   "tag": "DEN",
+   "aliases": [
+    "Dendele"
+   ]
+  },
+  {
+   "name": "Wildcard",
+   "tag": "WC",
+   "aliases": [
+    "Wildcard Gaming"
+   ]
+  }
+ ],
+ "stages": [
+  {
+   "id": "s1",
+   "name": "Stage 1",
+   "dates": "Nov 24 – 27",
+   "start": "2026-11-24",
+   "hltvEventId": null,
+   "entrants": [
+    "PARIVISION",
+    "FaZe Clan",
+    "9z Team",
+    "Team Liquid",
+    "HEROIC",
+    "Ninjas in Pyjamas",
+    "M80",
+    "Eternal Fire",
+    "100 Thieves",
+    "Imperial Esports",
+    "FlyQuest",
+    "BC.Game Esports",
+    "Lynn Vision",
+    "Chinggis Warriors",
+    "DENDELE",
+    "Wildcard"
+   ]
+  },
+  {
+   "id": "s2",
+   "name": "Stage 2",
+   "dates": "Nov 28 – Dec 1",
+   "start": "2026-11-28",
+   "hltvEventId": null,
+   "entrants": [
+    "Natus Vincere",
+    "The MongolZ",
+    "G2 Esports",
+    "Astralis",
+    "FUT Esports",
+    "1win Team",
+    "Nemiga Gaming",
+    "MIBR"
+   ]
+  },
+  {
+   "id": "s3",
+   "name": "Stage 3 & Playoffs",
+   "dates": "Dec 2 – 13",
+   "start": "2026-12-02",
+   "hltvEventId": null,
+   "entrants": [
+    "MOUZ",
+    "Team Vitality",
+    "Team Spirit",
+    "Team Falcons",
+    "FURIA Esports",
+    "Aurora Gaming",
+    "BetBoom Team",
+    "Legacy"
+   ]
+  }
+ ],
+ "matches": [],
+ "playoffs": {
+  "slots": null,
+  "results": {}
+ }
+}
